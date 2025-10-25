@@ -47,7 +47,7 @@ def get_session():
         thread_local.session = requests.Session()
     return thread_local.session
 
-HTTP_TIMEOUT = 10
+HTTP_TIMEOUT = 30
 
 def make_request(url, headers, timeout=HTTP_TIMEOUT):
     session = get_session()
@@ -73,6 +73,8 @@ def initialize_settings():
         # Performance settings
         max_workers = config.getint('performance', 'max_workers', fallback=10)
         batch_size = config.getint('performance', 'batch_size', fallback=25)
+        http_timeout = config.getint('performance', 'http_timeout', fallback=HTTP_TIMEOUT)
+        globals()['HTTP_TIMEOUT'] = max(5, http_timeout)
         
         try:
             # Test connection
@@ -113,7 +115,7 @@ def process_movies(server, token, skip_libraries, modules, excluded_languages, m
 
     logger.info(f"Total movies found: {len(all_movies)}")
     for lib_title, count in library_info.items():
-        logger.info(f"Library: {lib_title}, Movies: {count}")
+            logger.info(f"Library: {lib_title}, Movies: {count}")
 
     _progress_set_total(len(all_movies))
 
@@ -135,7 +137,9 @@ def process_single_movie(server, token, movie, modules, excluded_languages):
     # Fetch detailed movie data if needed
     detailed_movie = None
     try:
-        detailed_response = get_session().get(f'{server}/library/metadata/{movie_id}', headers=headers)
+        detailed_response = get_session().get(
+            f'{server}/library/metadata/{movie_id}', headers=headers, timeout=HTTP_TIMEOUT
+        )
         if detailed_response.status_code == 200:
             detailed_data = detailed_response.json()
             if 'MediaContainer' in detailed_data and 'Metadata' in detailed_data['MediaContainer']:

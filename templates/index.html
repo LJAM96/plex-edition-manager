@@ -49,13 +49,115 @@
 
   <section class="card">
     <div class="card-header">
-      <h2>Configuration</h2>
-      <p>Edit <code>config/config.ini</code> directly from the browser.</p>
+      <h2>Settings</h2>
+      <p>Configure your Plex server, processing options, and module order.</p>
+    </div>
+
+    <form id="settingsForm" method="post" action="{{ url_for('save_settings') }}" class="settings-form">
+      <div class="settings-grid">
+        <div class="settings-panel">
+          <h3>Server</h3>
+          <label>Protocol
+            <select name="server_scheme">
+              <option value="http" {% if settings.server.scheme == "http" %}selected{% endif %}>HTTP</option>
+              <option value="https" {% if settings.server.scheme == "https" %}selected{% endif %}>HTTPS</option>
+            </select>
+          </label>
+          <label>Host / IP
+            <input type="text" name="server_host" value="{{ settings.server.host }}" required>
+          </label>
+          <label>Port
+            <input type="number" min="1" name="server_port" value="{{ settings.server.port }}">
+          </label>
+          <label>Plex Token
+            <input type="password" name="server_token" value="{{ settings.server.token }}" autocomplete="current-password">
+          </label>
+          <label>Skip Libraries (one per line or semicolon separated)
+            <textarea name="skip_libraries" rows="3" placeholder="Kids;Documentaries">{{ settings.server.skip_libraries }}</textarea>
+          </label>
+        </div>
+
+        <div class="settings-panel">
+          <h3>Performance</h3>
+          <label>Max Workers
+            <input type="number" min="1" name="max_workers" value="{{ settings.performance.max_workers }}">
+          </label>
+          <label>Batch Size
+            <input type="number" min="1" name="batch_size" value="{{ settings.performance.batch_size }}">
+          </label>
+          <label>HTTP Timeout (seconds)
+            <input type="number" min="5" name="http_timeout" value="{{ settings.performance.http_timeout }}">
+          </label>
+          <p class="help-text">Increase the timeout for remote or rate-limited Plex servers.</p>
+        </div>
+      </div>
+
+      <div class="module-builder">
+        <div class="module-header">
+          <h3>Module Order</h3>
+          <p>Select which modules should be written and drag or nudge them into your preferred order.</p>
+        </div>
+        <ul id="moduleList" class="module-list">
+          {% for module in settings.modules.items %}
+            <li data-module="{{ module.name }}" class="module-item {% if module.enabled %}is-enabled{% endif %}">
+              <label>
+                <input type="checkbox" {% if module.enabled %}checked{% endif %}>
+                {{ module.name }}
+              </label>
+              <div class="module-controls">
+                <button type="button" class="icon-btn" data-move="up" title="Move up">▲</button>
+                <button type="button" class="icon-btn" data-move="down" title="Move down">▼</button>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+        <input type="hidden" name="module_order" id="moduleOrderInput">
+      </div>
+
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Save Settings</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" id="plexLoginCard">
+    <div class="card-header">
+      <h2>Plex Account Login</h2>
+      <p>Sign in with your Plex account to fetch an auth token and discover your servers.</p>
+    </div>
+    <form id="plexLoginForm" class="plex-login-form">
+      <div class="settings-grid">
+        <label>Email / Username
+          <input type="text" name="username" autocomplete="username" required>
+        </label>
+        <label>Password
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <div class="form-actions">
+          <button class="btn primary" type="submit">Sign In &amp; Fetch Servers</button>
+        </div>
+      </div>
+    </form>
+    <div id="plexServerPicker" class="plex-server-picker hidden">
+      <label>Select a server connection
+        <select id="plexServerSelect"></select>
+      </label>
+      <div class="form-actions">
+        <button class="btn" id="applyPlexServer" type="button">Use Selected Server</button>
+      </div>
+    </div>
+    <p id="plexLoginStatus" class="help-text"></p>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Advanced Configuration</h2>
+      <p>Edit <code>config/config.ini</code> manually if you need fine-grained tweaks.</p>
     </div>
     <form method="post" action="{{ url_for('update_config') }}" class="config-form">
       <textarea name="config_text" rows="18">{{ config_text }}</textarea>
       <div class="form-actions">
-        <button class="btn primary" type="submit">Save Configuration</button>
+        <button class="btn primary" type="submit">Save Raw File</button>
       </div>
     </form>
     <p class="help-text">

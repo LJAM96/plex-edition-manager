@@ -35,7 +35,18 @@ Edition Manager now ships with a browser-based UI that works well on laptops and
 2. Start the server: `python edition-manager-gui.py`
 3. Your browser opens automatically at `http://127.0.0.1:8000`
 
-Use the dashboard to trigger `--all`, `--reset`, `--backup`, and `--restore`, watch progress, tail logs, and edit `config/config.ini` safely.
+Use the dashboard to trigger `--all`, `--reset`, `--backup`, and `--restore`, watch progress, tail logs, and edit `config/config.ini` safely. The Settings card lets you:
+- Enter your Plex protocol/host/port without touching raw config files
+- Reorder modules with checkboxes + drag buttons
+- Tune worker counts, batch size, and the HTTP timeout for slow or remote servers
+
+### Plex account login (optional)
+The web UI can log in to plex.tv for you and populate the token/server address automatically:
+1. Open the *Plex Account Login* card and sign in with your Plex credentials
+2. Choose any of the discovered server connections (LAN or remote)
+3. Apply the selection, then click **Save Settings**
+
+Passwords are sent directly to plex.tv over HTTPS for token exchange and are never stored on disk—only the resulting token is written to `config/config.ini`.
 
 ### Remote/headless host
 1. Start the server and bind to an external interface, e.g.
@@ -186,7 +197,7 @@ Edit `config/config.ini` to customize your setup:
 ### Performance Settings
 - `max_workers`: Number of concurrent threads (4-12 recommended)
 - `batch_size`: Movies to process in each batch (10-30 recommended)
-- `cache_ttl`: Time to live for cache entries in seconds
+- `http_timeout`: Seconds to wait for Plex API responses (increase if your server is remote or slow)
 
 Since Edition Manager only processes libraries of movie type, specify libraries of movie type to skip when needed. There is no limit to the number of modules for writing editions, so you can choose and configure them according to your needs.
 
@@ -203,6 +214,7 @@ Since Edition Manager only processes libraries of movie type, specify libraries 
    - Verify your Plex server is running
    - Check your server address and token in config.ini
    - Ensure your network allows connections to the Plex server
+   - Increase `performance.http_timeout` if your server is remote or responses are slow
 
 2. **No Metadata Appearing**:
    - Check which modules are enabled in settings

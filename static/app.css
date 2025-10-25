@@ -194,6 +194,112 @@ progress::-moz-progress-bar {
   color: #991b1b;
 }
 
+.settings-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-weight: 600;
+  color: #1f1f24;
+}
+
+.settings-form input,
+.settings-form select,
+.settings-form textarea {
+  font: inherit;
+  padding: 0.5rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #cbd5f5;
+  background: #fbfcff;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: #f8f9ff;
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(67, 58, 204, 0.12);
+}
+
+.module-builder {
+  margin-top: 1.25rem;
+}
+
+.module-header {
+  margin-bottom: 0.75rem;
+}
+
+.module-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.module-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #e5e7f5;
+  background: #fff;
+}
+
+.module-item.is-enabled {
+  border-color: rgba(67, 58, 204, 0.35);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.07);
+}
+
+.module-item label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  font-weight: 600;
+}
+
+.module-controls {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.icon-btn {
+  border: none;
+  background: rgba(67, 58, 204, 0.1);
+  color: #433acc;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.icon-btn:hover {
+  background: rgba(67, 58, 204, 0.2);
+}
+
+.plex-login-form {
+  margin-top: 0.5rem;
+}
+
+.plex-server-picker {
+  margin-top: 1rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
 @media (max-width: 640px) {
   header.app-header {
     flex-direction: column;
