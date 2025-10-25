@@ -27,40 +27,56 @@ All required dependencies installed using
 pip install -r requirements.txt
 ```
 
-# Docker (GUI)
-The GUI can run inside Docker as long as an X server is available on the host.
+# Web Interface
+Edition Manager now ships with a browser-based UI that works well on laptops and headless servers alike.
 
-1. Build the image from the project root:
+### Run locally
+1. Install dependencies: `pip install -r requirements.txt`
+2. Start the server: `python edition-manager-gui.py`
+3. Your browser opens automatically at `http://127.0.0.1:8000`
+
+Use the dashboard to trigger `--all`, `--reset`, `--backup`, and `--restore`, watch progress, tail logs, and edit `config/config.ini` safely.
+
+### Remote/headless host
+1. Start the server and bind to an external interface, e.g.
    ```
-   docker build -t edition-manager-gui .
+   python edition-manager-gui.py --host 0.0.0.0 --port 8000 --no-browser
    ```
-2. (Linux) Allow Docker to talk to your current display once per session:
+2. Open `http://<server-ip>:8000` from your workstation
+
+The UI is stateless, so you can refresh or connect from multiple browsers while a task runs.
+
+# Docker (Web UI)
+The repository includes a Dockerfile that runs the web interface instead of a desktop GUI.
+
+1. Build the multi-arch image locally:
    ```
-   xhost +local:docker
+   docker build -t edition-manager-web .
    ```
-3. Start the container, sharing the display socket plus the config/modules folders so edits persist:
+2. Start the container and publish the HTTP port while keeping your `config/` and `modules/` directories mounted so edits persist:
    ```
    docker run --rm -it \
-     -e DISPLAY=$DISPLAY \
-     -v /tmp/.X11-unix:/tmp/.X11-unix \
+     -p 8000:8000 \
      -v $(pwd)/config:/app/config \
      -v $(pwd)/modules:/app/modules \
-     edition-manager-gui
+     edition-manager-web
    ```
+3. Open `http://localhost:8000` (or the appropriate host/IP) in your browser
 
-Tips:
-- Wayland: set `-e QT_QPA_PLATFORM=wayland` and mount your Wayland socket (for example `-v $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY` together with `-e WAYLAND_DISPLAY`).
-- Windows/macOS: run an external X server (e.g. VcXsrv/XQuartz) and set `-e DISPLAY=host.docker.internal:0.0`.
-- Add `--device /dev/dri` if you want Qt to use hardware acceleration on Linux hosts.
-- Remove the temporary permission when finished via `xhost -local:docker`.
+## Docker Compose
+`docker-compose.yml` mirrors the command above. From the project root:
+```
+docker compose up --build
+```
+The service exposes port 8000, watches local `config/` and `modules/`, and can be extended with additional environment variables or secrets if needed.
 
 # User-Friendly Operations:
 
-Simply run the [GUI](https://github.com/Entree3k/Edition-Manager/blob/main/Edition%20Manager%20GUI.md) version
+Launch the browser UI:
 ```
 python edition-manager-gui.py
 ```
-or on Widnows, double-click on `edition-manager-gui.pyw`
+or on Windows, double-click `edition-manager-gui.pyw` (the app opens `http://127.0.0.1:8000` automatically).
 
 ## Command Line Usage
 

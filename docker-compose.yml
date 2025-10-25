@@ -1,0 +1,12 @@
+services:
+  edition-manager-web:
+    build: .
+    image: edition-manager-web:local
+    container_name: edition-manager-web
+    ports:
+      - "8000:8000"
+    environment:
+      - FLASK_ENV=production
+    volumes:
+      - ./config:/app/config
+      - ./modules:/app/modules

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ app_title }} Web UI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <div class="app-title">{{ app_title }}</div>
+        <div class="app-subtitle">Web Interface</div>
+      </div>
+      <div class="app-version">{{ app_version }}</div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <script>
+      window.__INITIAL_STATUS__ = {{ status | tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+  </body>
+</html>

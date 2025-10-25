@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block content %}
+  {% if message %}
+    <div class="alert alert-success">{{ message }}</div>
+  {% elif error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Actions</h2>
+      <p>Trigger Edition Manager tasks and monitor their progress.</p>
+    </div>
+    <div class="actions">
+      <button class="btn primary" data-run="all">Process All Movies</button>
+      <button class="btn" data-run="reset">Reset Editions</button>
+      <button class="btn" data-run="backup">Backup Editions</button>
+      <button class="btn" data-run="restore">Restore Editions</button>
+      <button class="btn danger" data-cancel>Stop Current Task</button>
+    </div>
+    <div class="status-grid">
+      <div>
+        <span class="label">State</span>
+        <strong data-state>{{ "Running" if status.running else "Idle" }}</strong>
+      </div>
+      <div>
+        <span class="label">Operation</span>
+        <strong data-flag>{{ status.current_flag or "None" }}</strong>
+      </div>
+      <div>
+        <span class="label">Exit Code</span>
+        <strong data-exit>{{ status.exit_code if status.exit_code is not none else "—" }}</strong>
+      </div>
+    </div>
+    <div class="progress-row">
+      <progress id="progressBar" max="100" value="{{ status.progress }}"></progress>
+      <span data-progress-label>{{ status.progress }}%</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Logs</h2>
+      <p>Realtime output from <code>edition-manager.py</code>.</p>
+    </div>
+    <pre id="logWindow" class="log-window" data-log>{{ status.logs | join("\n") }}</pre>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <h2>Configuration</h2>
+      <p>Edit <code>config/config.ini</code> directly from the browser.</p>
+    </div>
+    <form method="post" action="{{ url_for('update_config') }}" class="config-form">
+      <textarea name="config_text" rows="18">{{ config_text }}</textarea>
+      <div class="form-actions">
+        <button class="btn primary" type="submit">Save Configuration</button>
+      </div>
+    </form>
+    <p class="help-text">
+      Changes are validated with Python's <code>configparser</code> before being written.
+      Keep a backup of your configuration before making significant edits.
+    </p>
+  </section>
+{% endblock %}
