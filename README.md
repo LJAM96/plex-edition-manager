@@ -25,6 +25,33 @@ All required dependencies installed using
 pip install -r requirements.txt
 ```
 
+# Docker (GUI)
+The GUI can run inside Docker as long as an X server is available on the host.
+
+1. Build the image from the project root:
+   ```
+   docker build -t edition-manager-gui .
+   ```
+2. (Linux) Allow Docker to talk to your current display once per session:
+   ```
+   xhost +local:docker
+   ```
+3. Start the container, sharing the display socket plus the config/modules folders so edits persist:
+   ```
+   docker run --rm -it \
+     -e DISPLAY=$DISPLAY \
+     -v /tmp/.X11-unix:/tmp/.X11-unix \
+     -v $(pwd)/config:/app/config \
+     -v $(pwd)/modules:/app/modules \
+     edition-manager-gui
+   ```
+
+Tips:
+- Wayland: set `-e QT_QPA_PLATFORM=wayland` and mount your Wayland socket (for example `-v $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/$WAYLAND_DISPLAY` together with `-e WAYLAND_DISPLAY`).
+- Windows/macOS: run an external X server (e.g. VcXsrv/XQuartz) and set `-e DISPLAY=host.docker.internal:0.0`.
+- Add `--device /dev/dri` if you want Qt to use hardware acceleration on Linux hosts.
+- Remove the temporary permission when finished via `xhost -local:docker`.
+
 # User-Friendly Operations:
 
 Simply run the [GUI](https://github.com/Entree3k/Edition-Manager/blob/main/Edition%20Manager%20GUI.md) version
