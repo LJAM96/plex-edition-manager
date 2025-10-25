@@ -288,7 +288,7 @@ def get_settings_snapshot() -> Dict[str, object]:
         },
         "modules": {
             "selected": get_selected_module_order(cfg),
-            "items": build_module_items(cfg),
+            "list": build_module_items(cfg),
         },
         "raw_text": load_config_text(),
     }

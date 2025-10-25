@@ -98,7 +98,7 @@
           <p>Select which modules should be written and drag or nudge them into your preferred order.</p>
         </div>
         <ul id="moduleList" class="module-list">
-          {% for module in settings.modules.items %}
+          {% for module in settings.modules.list %}
             <li data-module="{{ module.name }}" class="module-item {% if module.enabled %}is-enabled{% endif %}">
               <label>
                 <input type="checkbox" {% if module.enabled %}checked{% endif %}>
