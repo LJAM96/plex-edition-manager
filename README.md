@@ -1,4 +1,5 @@
-# Edition Manager
+# Plex Edition Manager
+
 
 Edition Manager is a powerful utility that enhances your Plex movie library by automatically generating and updating rich "Edition" metadata based on technical and content specifications of your movie files.
 
@@ -15,6 +16,7 @@ Edition Manager is a powerful tool designed to enhance your Plex media library b
 - **Performance Optimized**: Utilizes caching, multi-threading, and batch processing
 - **Backup & Restore**: Provides options to backup and restore metadata, ensuring you can always revert changes
 - **Plex Integration**: Seamlessly integrates with your Plex server, updating movie information directly in the Plex interface
+
 
 This tool is perfect for movie enthusiasts who want more detailed information about their digital collection at a glance, right within their Plex interface. It turns your Plex server into a comprehensive movie database, enhancing your browsing and selection experience.
 
@@ -40,18 +42,26 @@ Edition Manager can be used via command line:
 Add all selected Edition information
 ```
 python edition-manager.py --all
+
+
 ```
 Remove all Edition information
 ```
 python edition-manager.py --reset
+
+
+
 ```
 Easy backup of current Edition information
 ```
 python edition-manager.py --backup
+
+
 ```
 Easy restore of Edition information that was backed up
 ```
 python edition-manager.py --restore
+
 ```
 
 Edition Manager transforms your Plex library, offering a more informative and customizable viewing experience. Whether you're distinguishing between cut versions, highlighting technical specifications, or simply enriching your movie displays, this tool provides the means to curate your library exactly as you envision it.
@@ -180,3 +190,12 @@ All respect to [x1ao4](https://github.com/x1ao4) for the original
 ## Support
 
 If you found this helpful, consider giving it a ⭐️. Thanks for your support!
+
+
+
+
+
+
+
+
+
