@@ -263,9 +263,7 @@ progress::-moz-progress-bar {
 
 .settings-form input,
 .settings-form select,
-.settings-form textarea,
-.plex-login-form input,
-.plex-login-form select {
+.settings-form textarea {
   font: inherit;
   padding: 0.65rem 0.85rem;
   border-radius: 12px;
@@ -276,8 +274,7 @@ progress::-moz-progress-bar {
 
 .settings-form input:focus,
 .settings-form select:focus,
-.settings-form textarea:focus,
-.plex-login-form input:focus {
+.settings-form textarea:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
@@ -303,10 +300,6 @@ progress::-moz-progress-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
-}
-
-.form-grid.compact {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
 }
 
 .form-actions {
@@ -405,16 +398,42 @@ progress::-moz-progress-bar {
   background: rgba(99, 102, 241, 0.24);
 }
 
-.plex-login-form {
-  margin-top: 1rem;
+.connection-check {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.5rem;
 }
 
-.plex-server-picker {
-  margin-top: 1rem;
-  padding: 1rem;
-  border-radius: 18px;
+.connection-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
   background: var(--card-muted);
-  border: 1px dashed var(--border);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.connection-chip[data-state="pending"] {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.4);
+  color: var(--accent-strong);
+}
+
+.connection-chip[data-state="success"] {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.5);
+  color: #047857;
+}
+
+.connection-chip[data-state="error"] {
+  background: var(--danger-soft);
+  border-color: rgba(220, 38, 38, 0.4);
+  color: var(--danger);
 }
 
 .log-card {

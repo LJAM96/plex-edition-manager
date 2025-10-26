@@ -12,29 +12,37 @@ const cancelButton = document.querySelector("[data-cancel]");
 const settingsForm = document.getElementById("settingsForm");
 const moduleList = document.getElementById("moduleList");
 const moduleOrderInput = document.getElementById("moduleOrderInput");
-const plexLoginForm = document.getElementById("plexLoginForm");
-const plexStatus = document.getElementById("plexLoginStatus");
-const plexPicker = document.getElementById("plexServerPicker");
-const plexSelect = document.getElementById("plexServerSelect");
-const plexApplyBtn = document.getElementById("applyPlexServer");
 const serverSchemeField = document.querySelector("select[name='server_scheme']");
 const serverHostField = document.querySelector("input[name='server_host']");
 const serverPortField = document.querySelector("input[name='server_port']");
 const serverTokenField = document.querySelector("input[name='server_token']");
+const connectionBtn = document.getElementById("testConnectionBtn");
+const connectionStatus = document.getElementById("connectionStatus");
 
 let pollTimer = null;
-let plexAuthToken = "";
 
 function updateUI(data) {
   if (!data) return;
 
   const running = Boolean(data.running);
   const progress = Number(data.progress || 0);
+  const counts = data.progress_counts || {};
+  const done = Number(counts.done ?? NaN);
+  const total = Number(counts.total ?? NaN);
 
   if (statusEls.state) statusEls.state.textContent = running ? "Running" : "Idle";
   if (statusEls.flag) statusEls.flag.textContent = data.current_flag || "None";
   if (statusEls.exit) statusEls.exit.textContent = data.exit_code ?? "—";
-  if (statusEls.progressLabel) statusEls.progressLabel.textContent = `${progress}%`;
+  if (statusEls.progressLabel) {
+    const precision = progress >= 10 ? 1 : 2;
+    let label = `${progress.toFixed(precision)}%`;
+    if (Number.isFinite(done) && Number.isFinite(total) && total > 0) {
+      const doneFmt = Math.floor(done).toLocaleString();
+      const totalFmt = Math.floor(total).toLocaleString();
+      label += ` (${doneFmt}/${totalFmt})`;
+    }
+    statusEls.progressLabel.textContent = label;
+  }
   if (statusEls.progressBar) statusEls.progressBar.value = progress;
 
   const logWindow = statusEls.logWindow;
@@ -140,93 +148,38 @@ function setupModuleBuilder() {
   syncModuleOrder();
 }
 
-async function handlePlexLogin(event) {
-  event.preventDefault();
-  const formData = new FormData(plexLoginForm);
-  const payload = {
-    username: formData.get("username"),
-    password: formData.get("password"),
-  };
-  const otp = (formData.get("otp") || "").trim();
-  if (otp) {
-    payload.otp = otp;
-  }
-  plexStatus.textContent = "Signing in…";
-  plexPicker.classList.add("hidden");
-  plexSelect.innerHTML = "";
-  try {
-    const response = await fetch("/api/plex/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error || "Login failed");
-    plexAuthToken = data.token;
-    populatePlexServers(data.servers || []);
-    plexStatus.textContent = "Token retrieved. Select a server connection below.";
-  } catch (err) {
-    plexStatus.textContent = err.message;
-  }
+function setConnectionStatus(message, state = "idle") {
+  if (!connectionStatus) return;
+  connectionStatus.textContent = message;
+  connectionStatus.dataset.state = state;
 }
 
-function populatePlexServers(servers) {
-  plexSelect.innerHTML = "";
-  const options = [];
-  servers.forEach((server) => {
-    (server.connections || []).forEach((conn) => {
-      if (!conn.uri) return;
-      const label = `${server.name || "Unnamed"} — ${conn.protocol}://${conn.address}:${conn.port}${
-        conn.local ? " (LAN)" : ""
-      }`;
-      const option = document.createElement("option");
-      option.value = conn.uri;
-      option.textContent = label;
-      options.push(option);
-    });
-  });
-  if (options.length === 0) {
-    plexPicker.classList.add("hidden");
-    plexStatus.textContent = "No servers were returned for this account.";
+async function testServerConnection() {
+  if (!connectionBtn) return;
+  const scheme = serverSchemeField?.value || "http";
+  const host = (serverHostField?.value || "").trim();
+  const port = (serverPortField?.value || "").trim();
+  const token = (serverTokenField?.value || "").trim();
+  if (!host || !token) {
+    setConnectionStatus("Enter host/IP and token first.", "error");
     return;
   }
-  options.forEach((opt) => plexSelect.appendChild(opt));
-  plexPicker.classList.remove("hidden");
-}
-
-async function applyPlexServer() {
-  if (!plexAuthToken) {
-    plexStatus.textContent = "Please sign in first.";
-    return;
-  }
-  const uri = plexSelect.value;
-  if (!uri) {
-    plexStatus.textContent = "Select a server connection first.";
-    return;
-  }
-  plexStatus.textContent = "Saving server selection…";
+  setConnectionStatus("Testing connection…", "pending");
+  connectionBtn.disabled = true;
   try {
-    const response = await fetch("/api/plex/select-server", {
+    const response = await fetch("/api/server/test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: plexAuthToken, uri }),
+      body: JSON.stringify({ scheme, host, port, token }),
     });
     const data = await response.json();
-    if (!response.ok || data.error) throw new Error(data.error || "Unable to save server");
-    plexStatus.textContent = "Server settings updated. Remember to save the form below.";
-    if (serverTokenField) serverTokenField.value = plexAuthToken;
-    if (serverSchemeField && serverHostField && serverPortField && data.address) {
-      try {
-        const url = new URL(data.address);
-        serverSchemeField.value = url.protocol.replace(":", "") || "http";
-        serverHostField.value = url.hostname;
-        serverPortField.value = url.port || (url.protocol === "https:" ? "443" : "32400");
-      } catch (err) {
-        console.warn("Unable to parse address", err);
-      }
-    }
+    if (!response.ok || data.error) throw new Error(data.error || "Connection failed");
+    const name = data.server_name || host;
+    setConnectionStatus(`Connected to ${name}`, "success");
   } catch (err) {
-    plexStatus.textContent = err.message;
+    setConnectionStatus(err.message, "error");
+  } finally {
+    connectionBtn.disabled = false;
   }
 }
 
@@ -237,8 +190,10 @@ function init() {
   cancelButton?.addEventListener("click", cancelAction);
   settingsForm?.addEventListener("submit", () => syncModuleOrder());
   setupModuleBuilder();
-  plexLoginForm?.addEventListener("submit", handlePlexLogin);
-  plexApplyBtn?.addEventListener("click", applyPlexServer);
+  connectionBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    testServerConnection();
+  });
 
   updateUI(window.__INITIAL_STATUS__ || {});
   pollTimer = setInterval(fetchStatus, 2000);

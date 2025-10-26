@@ -40,14 +40,17 @@ Use the dashboard to trigger `--all`, `--reset`, `--backup`, and `--restore`, wa
 - Reorder modules with checkboxes + drag buttons
 - Tune worker counts, batch size, and the HTTP timeout for slow or remote servers
 
-### Plex account login (optional)
-The web UI can log in to plex.tv for you and populate the token/server address automatically:
-1. Open the *Plex Account Login* card and sign in with your Plex credentials
-2. Choose any of the discovered server connections (LAN or remote)
-3. Apply the selection, then click **Save Settings**
+### Connection health check
+Use the **Test Connection** button in the Server panel to confirm that your host/port/token combination is reachable before you save anything. Successful checks show the Plex server's friendly name so you know you're pointed at the right place, while failures surface the exact networking or authentication error returned by Plex.
 
-Passwords are sent directly to plex.tv over HTTPS for token exchange and are never stored on disk—only the resulting token is written to `config/config.ini`.
-If your Plex account enforces two-factor authentication, enter the current 6-digit code in the optional field so the login succeeds.
+### Scheduled automation
+If you want Edition Manager to run `Process Entire Library` automatically, provide a standard cron expression via `EM_AUTO_RUN_CRON`. The cron is evaluated in the container/host's local time.
+
+Examples:
+- Local run: `EM_AUTO_RUN_CRON="0 3 * * *" python edition-manager-gui.py`
+- Docker/Compose: set `EM_AUTO_RUN_CRON=0 2 * * 1-5` to run at 02:00 Monday–Friday
+
+At each scheduled firing the web UI launches a `--all` task (unless one is already running) and logs whether the trigger ran or was skipped.
 
 ### Remote/headless host
 1. Start the server and bind to an external interface, e.g.
@@ -246,8 +249,6 @@ All respect to [x1ao4](https://github.com/x1ao4) for the original
 ## Support
 
 If you found this helpful, consider giving it a ⭐️. Thanks for your support!
-
-
 
 
 

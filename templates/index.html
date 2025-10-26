@@ -78,6 +78,10 @@
                 <textarea name="skip_libraries" rows="3" placeholder="Kids;Documentaries">{{ settings.server.skip_libraries }}</textarea>
               </label>
               <p class="help-text">Use new lines or semicolons to ignore entire libraries when batch processing.</p>
+              <div class="connection-check">
+                <button class="btn ghost" type="button" id="testConnectionBtn">Test Connection</button>
+                <span id="connectionStatus" class="connection-chip" data-state="idle">Status: not checked</span>
+              </div>
             </section>
             <section class="form-panel">
               <h3>Performance</h3>
@@ -128,48 +132,13 @@
         </form>
       </section>
 
-      <section class="card" id="plexLoginCard">
-        <div class="card-header">
-          <div>
-            <p class="eyebrow">Step 2 · Token helper</p>
-            <h2>Plex Account Quick Login</h2>
-            <p>Fetch a Plex token and auto-fill the connection fields.</p>
-          </div>
-          <div class="card-hint subtle">Passwords never touch disk—only the resulting token is stored.</div>
-        </div>
-        <form id="plexLoginForm" class="plex-login-form">
-          <div class="form-grid compact">
-            <label>Email / Username
-              <input type="text" name="username" autocomplete="username" required>
-            </label>
-            <label>Password
-              <input type="password" name="password" autocomplete="current-password" required>
-            </label>
-            <label>2FA Code (if enabled)
-              <input type="text" name="otp" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" placeholder="123456">
-            </label>
-            <div class="form-actions inline">
-              <button class="btn primary" type="submit">Sign In &amp; Fetch Servers</button>
-            </div>
-          </div>
-        </form>
-        <div id="plexServerPicker" class="plex-server-picker hidden">
-          <label>Select a server connection
-            <select id="plexServerSelect"></select>
-          </label>
-          <div class="form-actions inline">
-            <button class="btn ghost" id="applyPlexServer" type="button">Use Selected Server</button>
-          </div>
-        </div>
-        <p id="plexLoginStatus" class="help-text"></p>
-      </section>
     </section>
 
     <section class="secondary-stack">
       <section class="card log-card">
         <div class="card-header">
           <div>
-            <p class="eyebrow">Step 3 · Watch it happen</p>
+            <p class="eyebrow">Step 2 · Watch it happen</p>
             <h2>Live Logs</h2>
             <p>Everything Edition Manager prints during a run, streamed in real-time.</p>
           </div>

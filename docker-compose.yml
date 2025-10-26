@@ -7,6 +7,8 @@ services:
       - "8000:8000"
     environment:
       - FLASK_ENV=production
+      # Automatically launch "--all" via cron expression (container local time)
+      - EM_AUTO_RUN_CRON=0 2 * * *
     volumes:
       - ./config:/app/config
       - ./modules:/app/modules

@@ -5,13 +5,12 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import os
 import subprocess
 import sys
 import threading
 import time
-import uuid
 import webbrowser
-import xml.etree.ElementTree as ET
 from collections import deque
 from datetime import datetime
 from pathlib import Path
@@ -19,6 +18,7 @@ from typing import Deque, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 import requests
+from croniter import croniter
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 APP_TITLE = "Edition Manager"
@@ -27,6 +27,7 @@ PROJECT_ROOT = Path(__file__).parent.resolve()
 PRIMARY_SCRIPT = PROJECT_ROOT / "edition-manager.py"
 CONFIG_FILE = PROJECT_ROOT / "config" / "config.ini"
 LOG_LIMIT = 1500
+AUTO_RUN_CRON = os.getenv("EM_AUTO_RUN_CRON", "").strip()
 _HEX_DIGITS = set("0123456789abcdefABCDEF")
 
 ACTIONS: Dict[str, str] = {
@@ -95,6 +96,7 @@ class TaskRunner:
         self._lock = threading.Lock()
         self._logs: Deque[str] = deque(maxlen=LOG_LIMIT)
         self._progress = 0
+        self._progress_counts: Dict[str, int] = {"done": 0, "total": 0}
         self._current_flag: Optional[str] = None
         self._running = False
         self._exit_code: Optional[int] = None
@@ -107,6 +109,7 @@ class TaskRunner:
                 raise RuntimeError("Another operation is already running.")
             self._running = True
             self._progress = 0
+            self._progress_counts = {"done": 0, "total": 0}
             self._exit_code = None
             self._logs.clear()
             self._current_flag = flag
@@ -133,6 +136,7 @@ class TaskRunner:
                 "exit_code": self._exit_code,
                 "logs": list(self._logs),
                 "started_at": self._started_at,
+                "progress_counts": self._progress_counts.copy(),
             }
 
     # Internal helpers -------------------------------------------------
@@ -178,11 +182,26 @@ class TaskRunner:
         self._append_log(line)
         if line.startswith("PROGRESS "):
             parts = line.split()
-            if len(parts) >= 2 and parts[1].isdigit():
-                pct = int(parts[1])
-                pct = max(0, min(100, pct))
+            pct = None
+            done = None
+            total = None
+            if len(parts) >= 2:
+                try:
+                    pct = float(parts[1])
+                except ValueError:
+                    pct = None
+            if len(parts) >= 4:
+                try:
+                    done = int(parts[2])
+                    total = int(parts[3])
+                except ValueError:
+                    done = total = None
+            if pct is not None:
+                pct = max(0.0, min(100.0, pct))
                 with self._lock:
                     self._progress = pct
+                    if done is not None and total is not None:
+                        self._progress_counts = {"done": done, "total": total}
 
     def _finish(self, flag: str, exit_code: Optional[int]) -> None:
         if exit_code == 0:
@@ -200,8 +219,52 @@ class TaskRunner:
         with self._lock:
             self._logs.append(f"[{stamp}] {message}")
 
+    def add_log_entry(self, message: str) -> None:
+        self._append_log(message)
+
 
 task_runner = TaskRunner(PRIMARY_SCRIPT)
+
+
+def start_auto_run_scheduler() -> None:
+    expression = AUTO_RUN_CRON
+    if not expression:
+        return
+    try:
+        iterator = croniter(expression, datetime.now())
+    except (ValueError, KeyError) as exc:
+        task_runner.add_log_entry(
+            f"Auto-run disabled: invalid cron expression '{expression}': {exc}"
+        )
+        return
+
+    def _worker() -> None:
+        next_run = iterator.get_next(datetime)
+        task_runner.add_log_entry(
+            f"Auto-run enabled with cron '{expression}'. Next run at {next_run.strftime('%Y-%m-%d %H:%M')}"
+        )
+        while True:
+            now = datetime.now()
+            wait_seconds = (next_run - now).total_seconds()
+            if wait_seconds > 1:
+                time.sleep(min(wait_seconds, 30))
+                continue
+            if task_runner.status().get("running"):
+                task_runner.add_log_entry("Auto-run skipped because a task is already running.")
+            else:
+                try:
+                    task_runner.add_log_entry(
+                        f"Auto-run triggered at {datetime.now().strftime('%H:%M:%S')}"
+                    )
+                    task_runner.start(ACTIONS["all"])
+                except RuntimeError as exc:
+                    task_runner.add_log_entry(f"Auto-run failed: {exc}")
+            next_run = iterator.get_next(datetime)
+
+    threading.Thread(target=_worker, daemon=True).start()
+
+
+start_auto_run_scheduler()
 
 
 def read_config_parser() -> configparser.ConfigParser:
@@ -349,15 +412,6 @@ def get_settings_snapshot() -> Dict[str, object]:
     return settings
 
 
-PLEX_HEADERS_BASE = {
-    "X-Plex-Product": "Edition Manager Web",
-    "X-Plex-Version": APP_VERSION,
-    "X-Plex-Device": "Web",
-    "X-Plex-Platform": "Python",
-    "X-Plex-Client-Identifier": uuid.uuid4().hex,
-}
-
-
 def sanitize_module_order(order_raw: str) -> List[str]:
     available = get_available_modules()
     entries = [part.strip() for part in order_raw.split(";") if part.strip()]
@@ -376,89 +430,25 @@ def normalize_skip_list(raw_value: str) -> str:
     return ";".join(parts)
 
 
-def _extract_plex_error_message(payload: object) -> Optional[str]:
-    if not isinstance(payload, dict):
-        return None
-    if isinstance(payload.get("error"), str):
-        return payload["error"]  # type: ignore[return-value]
-    errors = payload.get("errors")
-    if isinstance(errors, list) and errors:
-        first = errors[0]
-        if isinstance(first, dict) and isinstance(first.get("message"), str):
-            return first["message"]  # type: ignore[return-value]
-    return None
-
-
-def plex_login(username: str, password: str, otp: Optional[str] = None) -> str:
-    headers = {**PLEX_HEADERS_BASE, "X-Plex-Provides": "player"}
-    form = {
-        "user[login]": username,
-        "user[password]": password,
-    }
-    if otp:
-        form["user[code]"] = otp
-    response = requests.post(
-        "https://plex.tv/users/sign_in.json",
-        headers=headers,
-        data=form,
-        timeout=30,
-    )
-    data: Dict[str, object] = {}
+def test_server_connection(scheme: str, host: str, port: int, token: str, timeout: int = 10) -> Tuple[str, Optional[str]]:
+    if not host:
+        raise RuntimeError("Server host cannot be empty.")
+    if not token:
+        raise RuntimeError("Plex token is required.")
+    address = build_server_address(scheme, host, port)
+    headers = {"X-Plex-Token": token, "Accept": "application/json"}
+    url = f"{address}/library/sections"
+    try:
+        response = requests.get(url, headers=headers, timeout=timeout)
+        response.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Unable to reach Plex server: {exc}") from exc
     try:
         data = response.json()
     except ValueError:
         data = {}
-    if response.status_code >= 400:
-        message = _extract_plex_error_message(data) or "Login failed. Check your credentials or Plex account status."
-        lowered = message.lower()
-        if "two-factor" in lowered or "2fa" in lowered:
-            message = "Two-factor authentication code required. Enter the current 6-digit code from your authenticator."
-        raise RuntimeError(message)
-    token = data.get("user", {}).get("authToken")
-    if not token:
-        raise RuntimeError("Failed to retrieve Plex token.")
-    return token
-
-
-def plex_fetch_servers(token: str) -> List[Dict[str, object]]:
-    headers = {**PLEX_HEADERS_BASE, "X-Plex-Token": token}
-    params = {"includeHttps": 1, "includeRelay": 1}
-    response = requests.get(
-        "https://plex.tv/api/resources",
-        headers=headers,
-        params=params,
-        timeout=30,
-    )
-    if response.status_code >= 400:
-        raise RuntimeError("Unable to fetch Plex resources.")
-    servers: List[Dict[str, object]] = []
-    try:
-        root = ET.fromstring(response.text)
-    except ET.ParseError as exc:  # pragma: no cover - defensive
-        raise RuntimeError(f"Plex response parse error: {exc}") from exc
-    for device in root.findall(".//Device"):
-        provides = device.attrib.get("provides", "")
-        if "server" not in provides:
-            continue
-        connections = []
-        for conn in device.findall("Connection"):
-            connections.append(
-                {
-                    "uri": conn.attrib.get("uri"),
-                    "address": conn.attrib.get("address"),
-                    "port": conn.attrib.get("port"),
-                    "protocol": conn.attrib.get("protocol"),
-                    "local": conn.attrib.get("local") == "1",
-                }
-            )
-        servers.append(
-            {
-                "name": device.attrib.get("name") or device.attrib.get("clientIdentifier"),
-                "machineIdentifier": device.attrib.get("clientIdentifier"),
-                "connections": connections,
-            }
-        )
-    return servers
+    friendly = data.get("MediaContainer", {}).get("friendlyName")
+    return address, friendly
 
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -587,39 +577,31 @@ def get_status():
     return jsonify(task_runner.status())
 
 
-@app.post("/api/plex/login")
-def plex_login_endpoint():
+@app.post("/api/server/test")
+def test_server_endpoint():
     payload = request.get_json(silent=True) or {}
-    username = (payload.get("username") or "").strip()
-    password = payload.get("password") or ""
-    otp = (payload.get("otp") or "").strip()
-    if not username or not password:
-        return jsonify({"error": "Username and password are required."}), 400
+    scheme = (payload.get("scheme") or "http").strip().lower()
+    if scheme not in {"http", "https"}:
+        scheme = "http"
+    host = (payload.get("host") or "").strip()
+    token = (payload.get("token") or "").strip()
+    port_raw = str(payload.get("port") or "").strip()
+    default_port = "443" if scheme == "https" else "32400"
     try:
-        token = plex_login(username, password, otp or None)
-        servers = plex_fetch_servers(token)
+        port = int(port_raw or default_port)
+    except ValueError:
+        return jsonify({"error": "Port must be a number."}), 400
+    if not host or not token:
+        return jsonify({"error": "Server host and Plex token are required."}), 400
+    try:
+        address, friendly = test_server_connection(scheme, host, port, token)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify({"token": token, "servers": servers})
-
-
-@app.post("/api/plex/select-server")
-def plex_select_server():
-    payload = request.get_json(silent=True) or {}
-    token = (payload.get("token") or "").strip()
-    uri = (payload.get("uri") or "").strip()
-    if not token or not uri:
-        return jsonify({"error": "Token and server selection are required."}), 400
-    scheme, host, port = parse_server_address(uri)
-    cfg = read_config_parser()
-    ensure_section(cfg, "server")
-    cfg.set("server", "address", build_server_address(scheme, host, port))
-    cfg.set("server", "token", token)
-    save_config_parser(cfg)
     return jsonify(
         {
-            "status": "saved",
-            "address": build_server_address(scheme, host, port),
+            "status": "ok",
+            "address": address,
+            "server_name": friendly or host,
         }
     )
 

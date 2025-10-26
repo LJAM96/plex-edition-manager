@@ -14,21 +14,30 @@ from threading import Lock
 _progress_lock = Lock()
 _progress_total = 1
 _progress_done = 0
+_progress_last_emit = -1.0
+
+def _emit_progress(pct: float):
+    print(f"PROGRESS {pct:.4f} {_progress_done} {_progress_total}")
+    sys.stdout.flush()
 
 def _progress_set_total(n: int):
-    global _progress_total, _progress_done
+    global _progress_total, _progress_done, _progress_last_emit
     with _progress_lock:
         _progress_total = max(1, int(n))
         _progress_done = 0
-        print("PROGRESS 0"); sys.stdout.flush()
+        _progress_last_emit = -1.0
+        _emit_progress(0.0)
 
 def _progress_step(k: int = 1):
-    global _progress_done, _progress_total
+    global _progress_done, _progress_total, _progress_last_emit
     with _progress_lock:
-        _progress_done += k
-        pct = int((_progress_done * 100) / _progress_total)
-    print(f"PROGRESS {min(100, max(0, pct))}")
-    sys.stdout.flush()
+        _progress_done = min(_progress_total, _progress_done + k)
+        pct = (_progress_done * 100) / _progress_total
+        min_delta = max(0.1, 100 / max(1, _progress_total))
+        should_emit = _progress_last_emit < 0 or pct >= 100 or pct - _progress_last_emit >= min_delta
+        if should_emit:
+            _progress_last_emit = pct
+            _emit_progress(min(100.0, max(0.0, pct)))
 
 # Create a logger
 logger = logging.getLogger(__name__)
