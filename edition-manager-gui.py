@@ -27,6 +27,7 @@ PROJECT_ROOT = Path(__file__).parent.resolve()
 PRIMARY_SCRIPT = PROJECT_ROOT / "edition-manager.py"
 CONFIG_FILE = PROJECT_ROOT / "config" / "config.ini"
 LOG_LIMIT = 1500
+_HEX_DIGITS = set("0123456789abcdefABCDEF")
 
 ACTIONS: Dict[str, str] = {
     "all": "--all",
@@ -223,13 +224,66 @@ def ensure_section(cfg: configparser.ConfigParser, section: str) -> None:
         cfg.add_section(section)
 
 
+def _looks_like_unbracketed_ipv6(value: str) -> bool:
+    if not value or "[" in value or "]" in value:
+        return False
+    if value.count(":") < 2:
+        return False
+    stripped = value.replace(":", "")
+    return bool(stripped) and all(char in _HEX_DIGITS for char in stripped)
+
+
+def _split_host_port(netloc: str) -> Tuple[str, Optional[int]]:
+    raw = (netloc or "").strip()
+    if not raw:
+        return "", None
+    if "@" in raw:
+        raw = raw.split("@", 1)[1]
+    if raw.startswith("["):
+        closing = raw.find("]")
+        host = raw[1:closing] if closing != -1 else raw.lstrip("[")
+        port: Optional[int] = None
+        if closing != -1:
+            remainder = raw[closing + 1 :]
+            if remainder.startswith(":") and remainder[1:].isdigit():
+                port = int(remainder[1:])
+        return host, port
+    if _looks_like_unbracketed_ipv6(raw):
+        return raw, None
+    if ":" not in raw:
+        return raw, None
+    parts = raw.split(":")
+    tail = parts[-1]
+    if not tail.isdigit():
+        return raw, None
+    port = int(tail)
+    host = ":".join(parts[:-1]).strip()
+    while host and ":" in host:
+        head, sep, last = host.rpartition(":")
+        if last.isdigit():
+            host = head
+            continue
+        break
+    if not host and parts[:-1]:
+        host = parts[0]
+    return host, port
+
+
 def parse_server_address(address: str) -> Tuple[str, str, int]:
     if not address:
         return "http", "localhost", 32400
-    parsed = urlparse(address if "://" in address else f"http://{address}")
-    scheme = parsed.scheme or "http"
-    host = parsed.hostname or ""
-    port = parsed.port or (443 if scheme == "https" else 32400)
+    normalized = address.strip() or "http://localhost:32400"
+    normalized = normalized if "://" in normalized else f"http://{normalized}"
+    parsed = urlparse(normalized)
+    scheme = (parsed.scheme or "http").lower()
+    netloc = parsed.netloc or ""
+    if not netloc and parsed.path and "/" not in parsed.path:
+        netloc = parsed.path
+    host, port = _split_host_port(netloc)
+    if not host:
+        host = "localhost"
+    if port is None:
+        port = 443 if scheme == "https" else 32400
     return scheme, host, port
 
 
@@ -322,17 +376,44 @@ def normalize_skip_list(raw_value: str) -> str:
     return ";".join(parts)
 
 
-def plex_login(username: str, password: str) -> str:
+def _extract_plex_error_message(payload: object) -> Optional[str]:
+    if not isinstance(payload, dict):
+        return None
+    if isinstance(payload.get("error"), str):
+        return payload["error"]  # type: ignore[return-value]
+    errors = payload.get("errors")
+    if isinstance(errors, list) and errors:
+        first = errors[0]
+        if isinstance(first, dict) and isinstance(first.get("message"), str):
+            return first["message"]  # type: ignore[return-value]
+    return None
+
+
+def plex_login(username: str, password: str, otp: Optional[str] = None) -> str:
     headers = {**PLEX_HEADERS_BASE, "X-Plex-Provides": "player"}
+    form = {
+        "user[login]": username,
+        "user[password]": password,
+    }
+    if otp:
+        form["user[code]"] = otp
     response = requests.post(
         "https://plex.tv/users/sign_in.json",
         headers=headers,
-        auth=(username, password),
+        data=form,
         timeout=30,
     )
+    data: Dict[str, object] = {}
+    try:
+        data = response.json()
+    except ValueError:
+        data = {}
     if response.status_code >= 400:
-        raise RuntimeError("Login failed. Check your credentials or Plex account status.")
-    data = response.json()
+        message = _extract_plex_error_message(data) or "Login failed. Check your credentials or Plex account status."
+        lowered = message.lower()
+        if "two-factor" in lowered or "2fa" in lowered:
+            message = "Two-factor authentication code required. Enter the current 6-digit code from your authenticator."
+        raise RuntimeError(message)
     token = data.get("user", {}).get("authToken")
     if not token:
         raise RuntimeError("Failed to retrieve Plex token.")
@@ -511,10 +592,11 @@ def plex_login_endpoint():
     payload = request.get_json(silent=True) or {}
     username = (payload.get("username") or "").strip()
     password = payload.get("password") or ""
+    otp = (payload.get("otp") or "").strip()
     if not username or not password:
         return jsonify({"error": "Username and password are required."}), 400
     try:
-        token = plex_login(username, password)
+        token = plex_login(username, password, otp or None)
         servers = plex_fetch_servers(token)
     except RuntimeError as exc:
         return jsonify({"error": str(exc)}), 400

@@ -147,6 +147,10 @@ async function handlePlexLogin(event) {
     username: formData.get("username"),
     password: formData.get("password"),
   };
+  const otp = (formData.get("otp") || "").trim();
+  if (otp) {
+    payload.otp = otp;
+  }
   plexStatus.textContent = "Signing in…";
   plexPicker.classList.add("hidden");
   plexSelect.innerHTML = "";

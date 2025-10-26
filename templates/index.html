@@ -7,162 +7,191 @@
     <div class="alert alert-error">{{ error }}</div>
   {% endif %}
 
-  <section class="card">
-    <div class="card-header">
-      <h2>Actions</h2>
-      <p>Trigger Edition Manager tasks and monitor their progress.</p>
+  <section class="card hero-panel">
+    <div class="hero-header">
+      <div>
+        <p class="eyebrow">Control Center</p>
+        <h2>Run Edition Manager</h2>
+        <p>Launch or supervise a task without leaving your browser.</p>
+      </div>
+      <span class="state-pill" data-state>{{ "Running" if status.running else "Idle" }}</span>
     </div>
-    <div class="actions">
-      <button class="btn primary" data-run="all">Process All Movies</button>
+    <div class="hero-metrics">
+      <div class="metric-tile">
+        <span class="label">Operation</span>
+        <strong data-flag>{{ status.current_flag or "None" }}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="label">Exit Code</span>
+        <strong data-exit>{{ status.exit_code if status.exit_code is not none else "—" }}</strong>
+      </div>
+      <div class="metric-tile">
+        <span class="label">Progress</span>
+        <strong data-progress-label>{{ status.progress }}%</strong>
+      </div>
+    </div>
+    <div class="progress-track">
+      <progress id="progressBar" max="100" value="{{ status.progress }}"></progress>
+    </div>
+    <div class="actions-grid">
+      <button class="btn primary" data-run="all">Process Entire Library</button>
       <button class="btn" data-run="reset">Reset Editions</button>
       <button class="btn" data-run="backup">Backup Editions</button>
       <button class="btn" data-run="restore">Restore Editions</button>
       <button class="btn danger" data-cancel>Stop Current Task</button>
     </div>
-    <div class="status-grid">
-      <div>
-        <span class="label">State</span>
-        <strong data-state>{{ "Running" if status.running else "Idle" }}</strong>
-      </div>
-      <div>
-        <span class="label">Operation</span>
-        <strong data-flag>{{ status.current_flag or "None" }}</strong>
-      </div>
-      <div>
-        <span class="label">Exit Code</span>
-        <strong data-exit>{{ status.exit_code if status.exit_code is not none else "—" }}</strong>
-      </div>
-    </div>
-    <div class="progress-row">
-      <progress id="progressBar" max="100" value="{{ status.progress }}"></progress>
-      <span data-progress-label>{{ status.progress }}%</span>
-    </div>
   </section>
 
-  <section class="card">
-    <div class="card-header">
-      <h2>Logs</h2>
-      <p>Realtime output from <code>edition-manager.py</code>.</p>
-    </div>
-    <pre id="logWindow" class="log-window" data-log>{{ status.logs | join("\n") }}</pre>
-  </section>
-
-  <section class="card">
-    <div class="card-header">
-      <h2>Settings</h2>
-      <p>Configure your Plex server, processing options, and module order.</p>
-    </div>
-
-    <form id="settingsForm" method="post" action="{{ url_for('save_settings') }}" class="settings-form">
-      <div class="settings-grid">
-        <div class="settings-panel">
-          <h3>Server</h3>
-          <label>Protocol
-            <select name="server_scheme">
-              <option value="http" {% if settings.server.scheme == "http" %}selected{% endif %}>HTTP</option>
-              <option value="https" {% if settings.server.scheme == "https" %}selected{% endif %}>HTTPS</option>
-            </select>
-          </label>
-          <label>Host / IP
-            <input type="text" name="server_host" value="{{ settings.server.host }}" required>
-          </label>
-          <label>Port
-            <input type="number" min="1" name="server_port" value="{{ settings.server.port }}">
-          </label>
-          <label>Plex Token
-            <input type="password" name="server_token" value="{{ settings.server.token }}" autocomplete="current-password">
-          </label>
-          <label>Skip Libraries (one per line or semicolon separated)
-            <textarea name="skip_libraries" rows="3" placeholder="Kids;Documentaries">{{ settings.server.skip_libraries }}</textarea>
-          </label>
+  <div class="layout-grid">
+    <section class="primary-stack">
+      <section class="card settings-card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Step 1 · Connection &amp; Behavior</p>
+            <h2>User Setup &amp; Customisation</h2>
+            <p>Point Edition Manager to the correct Plex server, tune performance, and decide which modules run.</p>
+          </div>
+          <div class="card-hint">Remember to save after making changes.</div>
         </div>
-
-        <div class="settings-panel">
-          <h3>Performance</h3>
-          <label>Max Workers
-            <input type="number" min="1" name="max_workers" value="{{ settings.performance.max_workers }}">
-          </label>
-          <label>Batch Size
-            <input type="number" min="1" name="batch_size" value="{{ settings.performance.batch_size }}">
-          </label>
-          <label>HTTP Timeout (seconds)
-            <input type="number" min="5" name="http_timeout" value="{{ settings.performance.http_timeout }}">
-          </label>
-          <p class="help-text">Increase the timeout for remote or rate-limited Plex servers.</p>
-        </div>
-      </div>
-
-      <div class="module-builder">
-        <div class="module-header">
-          <h3>Module Order</h3>
-          <p>Select which modules should be written and drag or nudge them into your preferred order.</p>
-        </div>
-        <ul id="moduleList" class="module-list">
-          {% for module in settings.modules.list %}
-            <li data-module="{{ module.name }}" class="module-item {% if module.enabled %}is-enabled{% endif %}">
-              <label>
-                <input type="checkbox" {% if module.enabled %}checked{% endif %}>
-                {{ module.name }}
-              </label>
-              <div class="module-controls">
-                <button type="button" class="icon-btn" data-move="up" title="Move up">▲</button>
-                <button type="button" class="icon-btn" data-move="down" title="Move down">▼</button>
+        <form id="settingsForm" method="post" action="{{ url_for('save_settings') }}" class="settings-form">
+          <div class="form-sections">
+            <section class="form-panel">
+              <h3>Server details</h3>
+              <div class="form-grid">
+                <label>Protocol
+                  <select name="server_scheme">
+                    <option value="http" {% if settings.server.scheme == "http" %}selected{% endif %}>HTTP</option>
+                    <option value="https" {% if settings.server.scheme == "https" %}selected{% endif %}>HTTPS</option>
+                  </select>
+                </label>
+                <label>Host or IP
+                  <input type="text" name="server_host" value="{{ settings.server.host }}" required>
+                </label>
+                <label>Port
+                  <input type="number" min="1" name="server_port" value="{{ settings.server.port }}">
+                </label>
+                <label>Plex Token
+                  <input type="password" name="server_token" value="{{ settings.server.token }}" autocomplete="current-password">
+                </label>
               </div>
-            </li>
-          {% endfor %}
-        </ul>
-        <input type="hidden" name="module_order" id="moduleOrderInput">
-      </div>
+              <label>Skip Libraries
+                <textarea name="skip_libraries" rows="3" placeholder="Kids;Documentaries">{{ settings.server.skip_libraries }}</textarea>
+              </label>
+              <p class="help-text">Use new lines or semicolons to ignore entire libraries when batch processing.</p>
+            </section>
+            <section class="form-panel">
+              <h3>Performance</h3>
+              <div class="form-grid">
+                <label>Max Workers
+                  <input type="number" min="1" name="max_workers" value="{{ settings.performance.max_workers }}">
+                </label>
+                <label>Batch Size
+                  <input type="number" min="1" name="batch_size" value="{{ settings.performance.batch_size }}">
+                </label>
+                <label>HTTP Timeout (seconds)
+                  <input type="number" min="5" name="http_timeout" value="{{ settings.performance.http_timeout }}">
+                </label>
+              </div>
+              <p class="help-text">Increase the timeout for remote servers or throttled connections.</p>
+            </section>
+          </div>
 
-      <div class="form-actions">
-        <button class="btn primary" type="submit">Save Settings</button>
-      </div>
-    </form>
-  </section>
+          <div class="module-board">
+            <div class="module-header">
+              <div>
+                <p class="eyebrow">Modules</p>
+                <h3>Choose the metadata writers &amp; reorder them</h3>
+                <p class="help-text">Enabled modules run top-to-bottom. It’s safe to disable anything you don’t use.</p>
+              </div>
+              <span class="chip">{{ settings.modules.selected | length }} enabled</span>
+            </div>
+            <ul id="moduleList" class="module-list">
+              {% for module in settings.modules.list %}
+                <li data-module="{{ module.name }}" class="module-item {% if module.enabled %}is-enabled{% endif %}">
+                  <label>
+                    <input type="checkbox" {% if module.enabled %}checked{% endif %}>
+                    {{ module.name }}
+                  </label>
+                  <div class="module-controls">
+                    <button type="button" class="icon-btn" data-move="up" title="Move up">↑</button>
+                    <button type="button" class="icon-btn" data-move="down" title="Move down">↓</button>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+            <input type="hidden" name="module_order" id="moduleOrderInput">
+          </div>
 
-  <section class="card" id="plexLoginCard">
-    <div class="card-header">
-      <h2>Plex Account Login</h2>
-      <p>Sign in with your Plex account to fetch an auth token and discover your servers.</p>
-    </div>
-    <form id="plexLoginForm" class="plex-login-form">
-      <div class="settings-grid">
-        <label>Email / Username
-          <input type="text" name="username" autocomplete="username" required>
-        </label>
-        <label>Password
-          <input type="password" name="password" autocomplete="current-password" required>
-        </label>
-        <div class="form-actions">
-          <button class="btn primary" type="submit">Sign In &amp; Fetch Servers</button>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save Settings</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card" id="plexLoginCard">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Step 2 · Token helper</p>
+            <h2>Plex Account Quick Login</h2>
+            <p>Fetch a Plex token and auto-fill the connection fields.</p>
+          </div>
+          <div class="card-hint subtle">Passwords never touch disk—only the resulting token is stored.</div>
         </div>
-      </div>
-    </form>
-    <div id="plexServerPicker" class="plex-server-picker hidden">
-      <label>Select a server connection
-        <select id="plexServerSelect"></select>
-      </label>
-      <div class="form-actions">
-        <button class="btn" id="applyPlexServer" type="button">Use Selected Server</button>
-      </div>
-    </div>
-    <p id="plexLoginStatus" class="help-text"></p>
-  </section>
+        <form id="plexLoginForm" class="plex-login-form">
+          <div class="form-grid compact">
+            <label>Email / Username
+              <input type="text" name="username" autocomplete="username" required>
+            </label>
+            <label>Password
+              <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <label>2FA Code (if enabled)
+              <input type="text" name="otp" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" placeholder="123456">
+            </label>
+            <div class="form-actions inline">
+              <button class="btn primary" type="submit">Sign In &amp; Fetch Servers</button>
+            </div>
+          </div>
+        </form>
+        <div id="plexServerPicker" class="plex-server-picker hidden">
+          <label>Select a server connection
+            <select id="plexServerSelect"></select>
+          </label>
+          <div class="form-actions inline">
+            <button class="btn ghost" id="applyPlexServer" type="button">Use Selected Server</button>
+          </div>
+        </div>
+        <p id="plexLoginStatus" class="help-text"></p>
+      </section>
+    </section>
 
-  <section class="card">
-    <div class="card-header">
-      <h2>Advanced Configuration</h2>
-      <p>Edit <code>config/config.ini</code> manually if you need fine-grained tweaks.</p>
-    </div>
-    <form method="post" action="{{ url_for('update_config') }}" class="config-form">
-      <textarea name="config_text" rows="18">{{ config_text }}</textarea>
-      <div class="form-actions">
-        <button class="btn primary" type="submit">Save Raw File</button>
-      </div>
-    </form>
-    <p class="help-text">
-      Changes are validated with Python's <code>configparser</code> before being written.
-      Keep a backup of your configuration before making significant edits.
-    </p>
-  </section>
+    <section class="secondary-stack">
+      <section class="card log-card">
+        <div class="card-header">
+          <div>
+            <p class="eyebrow">Step 3 · Watch it happen</p>
+            <h2>Live Logs</h2>
+            <p>Everything Edition Manager prints during a run, streamed in real-time.</p>
+          </div>
+        </div>
+        <pre id="logWindow" class="log-window" data-log>{{ status.logs | join("\n") }}</pre>
+      </section>
+
+      <section class="card">
+        <div class="card-header">
+          <h2>Advanced Configuration</h2>
+          <p>Edit <code>config/config.ini</code> directly when you need lower-level tweaks.</p>
+        </div>
+        <form method="post" action="{{ url_for('update_config') }}" class="config-form">
+          <textarea name="config_text" rows="16">{{ config_text }}</textarea>
+          <div class="form-actions">
+            <button class="btn primary" type="submit">Save Raw File</button>
+          </div>
+        </form>
+        <p class="help-text">
+          We validate the contents with Python’s <code>configparser</code> before writing to disk. Keep a backup for large edits.
+        </p>
+      </section>
+    </section>
+  </div>
 {% endblock %}

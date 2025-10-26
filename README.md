@@ -47,6 +47,7 @@ The web UI can log in to plex.tv for you and populate the token/server address a
 3. Apply the selection, then click **Save Settings**
 
 Passwords are sent directly to plex.tv over HTTPS for token exchange and are never stored on disk—only the resulting token is written to `config/config.ini`.
+If your Plex account enforces two-factor authentication, enter the current 6-digit code in the optional field so the login succeeds.
 
 ### Remote/headless host
 1. Start the server and bind to an external interface, e.g.
@@ -245,7 +246,6 @@ All respect to [x1ao4](https://github.com/x1ao4) for the original
 ## Support
 
 If you found this helpful, consider giving it a ⭐️. Thanks for your support!
-
 
 
 
