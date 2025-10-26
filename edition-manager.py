@@ -11,10 +11,16 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from configparser import ConfigParser
 from threading import Lock
+
 _progress_lock = Lock()
 _progress_total = 1
 _progress_done = 0
 _progress_last_emit = -1.0
+
+CACHE_FILE = Path(__file__).parent / 'config' / 'progress-cache.json'
+_cache_lock = Lock()
+_progress_cache = {}
+_progress_cache_dirty = 0
 
 def _emit_progress(pct: float):
     print(f"PROGRESS {pct:.4f} {_progress_done} {_progress_total}")
@@ -38,6 +44,71 @@ def _progress_step(k: int = 1):
         if should_emit:
             _progress_last_emit = pct
             _emit_progress(min(100.0, max(0.0, pct)))
+
+
+def load_progress_cache():
+    global _progress_cache
+    with _cache_lock:
+        if CACHE_FILE.exists():
+            try:
+                _progress_cache = json.loads(CACHE_FILE.read_text(encoding='utf-8'))
+            except Exception:
+                _progress_cache = {}
+        else:
+            _progress_cache = {}
+
+
+def save_progress_cache(force: bool = False):
+    global _progress_cache_dirty
+    with _cache_lock:
+        if not force and _progress_cache_dirty < 25:
+            return
+        CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with CACHE_FILE.open('w', encoding='utf-8') as fh:
+            json.dump(_progress_cache, fh, indent=2)
+        _progress_cache_dirty = 0
+
+
+def _movie_signature(movie: dict) -> str:
+    updated = movie.get('updatedAt') or movie.get('addedAt') or 0
+    duration = movie.get('duration') or 0
+    media = movie.get('Media') or []
+    size = 0
+    if media:
+        parts = media[0].get('Part') or []
+        if parts:
+            size = parts[0].get('size', 0)
+    return f"{updated}-{duration}-{size}"
+
+
+def should_skip_movie(movie: dict) -> bool:
+    key = str(movie.get('ratingKey') or '')
+    if not key:
+        return False
+    signature = _movie_signature(movie)
+    with _cache_lock:
+        entry = _progress_cache.get(key)
+        return bool(entry and entry.get('signature') == signature)
+
+
+def mark_movie_processed(movie: dict):
+    global _progress_cache_dirty
+    key = str(movie.get('ratingKey') or '')
+    if not key:
+        return
+    signature = _movie_signature(movie)
+    if not signature:
+        return
+    with _cache_lock:
+        existing = _progress_cache.get(key)
+        if existing and existing.get('signature') == signature:
+            return
+        _progress_cache[key] = {
+            'signature': signature,
+            'title': movie.get('title', ''),
+        }
+        _progress_cache_dirty += 1
+    save_progress_cache(force=False)
 
 # Create a logger
 logger = logging.getLogger(__name__)
@@ -124,19 +195,35 @@ def process_movies(server, token, skip_libraries, modules, excluded_languages, m
 
     logger.info(f"Total movies found: {len(all_movies)}")
     for lib_title, count in library_info.items():
-            logger.info(f"Library: {lib_title}, Movies: {count}")
+        logger.info(f"Library: {lib_title}, Movies: {count}")
 
-    _progress_set_total(len(all_movies))
+    pending_movies = []
+    skipped = 0
+    for movie in all_movies:
+        if should_skip_movie(movie):
+            skipped += 1
+            continue
+        pending_movies.append(movie)
+
+    if skipped:
+        logger.info(f"Skipping {skipped} movies that match the cache. {len(pending_movies)} remain.")
+    if not pending_movies:
+        logger.info("All movies are up to date according to the cache. Remove progress-cache.json to force a full run.")
+        return
+
+    _progress_set_total(len(pending_movies))
 
     # Submit batches, but wait for each batch to finish before submitting the next (backpressure)
     from concurrent.futures import ThreadPoolExecutor, as_completed
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for i in range(0, len(all_movies), batch_size):
-            batch = all_movies[i:i+batch_size]
+        for i in range(0, len(pending_movies), batch_size):
+            batch = pending_movies[i:i+batch_size]
             futures = [executor.submit(process_single_movie, server, token, m, modules, excluded_languages) for m in batch]
             for _ in as_completed(futures):
                 _progress_step()
-            logger.info(f"Processed batch {i//batch_size + 1}/{(len(all_movies)+batch_size-1)//batch_size}")
+            logger.info(f"Processed batch {i//batch_size + 1}/{(len(pending_movies)+batch_size-1)//batch_size}")
+
+    save_progress_cache(force=True)
 
 # Process a single movie (without caching)
 def process_single_movie(server, token, movie, modules, excluded_languages):
@@ -275,6 +362,7 @@ def process_single_movie(server, token, movie, modules, excluded_languages):
         
         # Always call update_movie, even if tags is empty
         update_movie(server, token, movie_data, tags, modules)
+        mark_movie_processed(movie_data)
 
 def update_movie(server, token, movie, tags, modules):
     movie_id = movie['ratingKey']
@@ -412,6 +500,7 @@ def restore_metadata(server, token, backup_file):
 # Main function
 def main():
     server, token, skip_libraries, modules, excluded_languages, max_workers, batch_size = initialize_settings()
+    load_progress_cache()
     
     parser = argparse.ArgumentParser(description='Manage Plex server movie editions')
     parser.add_argument('--all', action='store_true', help='Add edition info to all movies')

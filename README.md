@@ -52,6 +52,9 @@ Examples:
 
 At each scheduled firing the web UI launches a `--all` task (unless one is already running) and logs whether the trigger ran or was skipped.
 
+### Cached progress
+Runs now store a lightweight cache in `config/progress-cache.json`. Each movie's Plex `updatedAt` and media size are tracked so unchanged titles are automatically skipped on subsequent passes. Remove that file (or edit entries) if you want to force a full refresh—for example after changing module logic or when you intentionally need to reprocess everything.
+
 ### Remote/headless host
 1. Start the server and bind to an external interface, e.g.
    ```
@@ -249,7 +252,6 @@ All respect to [x1ao4](https://github.com/x1ao4) for the original
 ## Support
 
 If you found this helpful, consider giving it a ⭐️. Thanks for your support!
-
 
 
 
